@@ -1,0 +1,31 @@
+name: Create release tag
+
+on:
+  push:
+    paths:
+      - 'emscripten-releases-tags.json'
+
+jobs:
+    tag-release:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Get Release number
+          uses: actions/github-script@v7
+          with:
+            script: |
+              const commit = await github.rest.git.getCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: context.sha
+              })
+              console.log(commit)
+        - name: Create tag
+          uses: actions/github-script@v7
+          with:
+            script: |
+              github.rest.git.createRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: 'refs/tags/TAGNAME',
+                sha: context.sha
+              })
