@@ -23,8 +23,8 @@ jobs:
         id: cpr
         uses: peter-evans/create-pull-request@v6
         with:
-          title: Release (FIXME get version)
-          commit-message: Release (FIXME get version from script)
+          title: Release ${{ env.RELEASE_VERSION}}
+          commit-message: Release ${{ env.RELEASE_VERSION }}
           delete-branch: true
 
 

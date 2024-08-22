@@ -73,6 +73,9 @@ def main(args):
 
     # Push new branch to origin
     subprocess.check_call(['git', 'push', 'origin', branch_name], cwd=root_dir)
+  else:
+    with open(os.environ['GITHUB_ENV']) as f:
+      f.write(f'RELEASE_VERSION={new_version}')
 
   return 0
 
