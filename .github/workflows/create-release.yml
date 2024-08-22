@@ -10,13 +10,13 @@ on:
         required: true
         type: string
 
-  
+
 jobs:
   create-release-pr:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@2
+        uses: actions/checkout@v2
       - name: Run create_release.py
         run: python3 scripts/create_release.py ${{ inputs.lto-sha }} ${{ inputs.nonlto-sha }}
 
