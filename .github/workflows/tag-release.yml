@@ -1,3 +1,5 @@
+# When a release commit created by create-release.yml is landed, create the
+# corresponding tag.
 name: Create release tag
 
 on:
@@ -7,36 +9,13 @@ on:
 
 jobs:
     tag-release:
-      if: ${{ github.event.head_commit.author.username }} == 'github-actions[bot]'
+      # Only activate for commits created by the create-release.yml workflow.
+      # The assumption is that when manual changes happen, we want to handle
+      # tagging manually too.
+      if: github.event.head_commit.author.username == 'github-actions[bot]'
       runs-on: ubuntu-latest
       steps:
-        - name: Get Release number
-          uses: actions/github-script@v7
-          with:
-            script: |
-              console.log('${{ github.event.head_commit.author.username }}')
-              console.log('${{ github.event.head_commit.committer.username }}')
-              console.log(context.sha)
-              //console.log('${{github.env.head_commit}}')
-              const commit = await github.rest.git.getCommit({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                commit_sha: context.sha
-              })
-              console.log(commit)
-              console.log(commit.data.author)
-              const message = `${{ github.event.head_commit.message }}`
-              console.log('message')
-              console.log(message)
-              const regex = /Release ([0-9]+.[0-9]+.[0-9]+)/
-              const match = message.match(regex)
-              if (match) {
-                const release = match[1]
-                console.log(`Matched release ${release}`)
-              } else {
-               console.log("no match")
-              }
-        - name: Create tag
+        - name: Match message and create tag
           uses: actions/github-script@v7
           with:
             script: |
@@ -53,5 +32,5 @@ jobs:
                   sha: context.sha
                 })
               } else {
-               console.log(`Commit message: ${message} did not match`)
+               console.log(`Commit message: ${message} did not match pattern`)
               }
