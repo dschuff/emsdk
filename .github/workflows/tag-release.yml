@@ -13,10 +13,9 @@ jobs:
           uses: actions/github-script@v7
           with:
             script: |
-              //console.log('${{ github.event.head_commit.author.username }}')
               console.log('${{ github.event.head_commit.committer.username }}')
               console.log(context.sha)
-              console.log('${{github.env.head_commit}}')
+              //console.log('${{github.env.head_commit}}')
               const commit = await github.rest.git.getCommit({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
