@@ -22,7 +22,8 @@ jobs:
               console.log("message")
               const message = ${{ github.event.head_commit.message }}
               console.log(message)
-              const match = message.match(/Release ([0-9]+.[0-9]+.[0-9]+)/)
+              const regex = /Release ([0-9]+.[0-9]+.[0-9]+)/
+              const match = message.match(regex)
               if (match) {
                 console.log(`Matched release ${match[1]}`)
               } else {
