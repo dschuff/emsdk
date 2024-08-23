@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'emscripten-releases-tags.json'
+  workflow_dispatch:
 
 jobs:
     tag-release:
