@@ -14,7 +14,7 @@ jobs:
           with:
             script: |
               console.log('${{ github.event.head_commit.author.username }}')
-              console.log('${{ github.event.head_commit.committer.username }}')
+              #console.log('${{ github.event.head_commit.committer.username }}')
               const message = "${{ github.event.head_commit.message }}"
               console.log('message')
               console.log(message)
