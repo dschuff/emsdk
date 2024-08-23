@@ -55,3 +55,5 @@ jobs:
               } else {
                console.log(`Commit message: ${message} did not match`)
               }
+
+      
