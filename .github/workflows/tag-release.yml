@@ -7,6 +7,7 @@ on:
 
 jobs:
     tag-release:
+      if: ${{ github.event.head_commit.author.username }} == 'github-actions[bot]'
       runs-on: ubuntu-latest
       steps:
         - name: Get Release number
@@ -30,7 +31,8 @@ jobs:
               const regex = /Release ([0-9]+.[0-9]+.[0-9]+)/
               const match = message.match(regex)
               if (match) {
-                console.log(`Matched release ${match[1]}`)
+                const release = match[1]
+                console.log(`Matched release ${release}`)
               } else {
                console.log("no match")
               }
@@ -38,9 +40,18 @@ jobs:
           uses: actions/github-script@v7
           with:
             script: |
-              github.rest.git.createRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: 'refs/tags/TAGNAME',
-                sha: context.sha
-              })
+              const message = `${{ github.event.head_commit.message }}`
+              const regex = /Release ([0-9]+.[0-9]+.[0-9]+)/
+              const match = message.match(regex)
+              if (match) {
+                const release = match[1]
+                console.log(`Matched release ${release}`)
+                await github.rest.git.createRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `refs/tags/${release}`,
+                  sha: context.sha
+                })
+              } else {
+               console.log(`Commit message: ${message} did not match`)
+              }
