@@ -37,3 +37,6 @@ if [ -z "$EMSDK_PYTHON" ]; then
 fi
 
 exec "$EMSDK_PYTHON" "$0.py" "$@"
+
+
+
