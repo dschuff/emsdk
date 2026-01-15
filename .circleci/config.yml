@@ -6,7 +6,7 @@ orbs:
 executors:
   ubuntu:
     docker:
-      - image: buildpack-deps:focal
+      - image: buildpack-deps:jammy
   mac_arm64:
     environment:
       EMSDK_NOTTY: "1"
@@ -14,8 +14,10 @@ executors:
       # brew itself which takes more than 4 minutes.
       HOMEBREW_NO_AUTO_UPDATE: "1"
     macos:
-      xcode: "13.4.1"
-    resource_class: macos.m1.medium.gen1
+      # Corresponds to macOS 13.2.1
+      # See https://circleci.com/docs/guides/execution-managed/using-macos/#supported-xcode-versions
+      xcode: "14.3.1"
+    resource_class: m4pro.medium
   linux_arm64:
     machine:
       image: ubuntu-2004:2023.07.1
@@ -38,21 +40,57 @@ commands:
           command: |
             source emsdk_env.sh
             test/test.py
+  test-bazel-linux:
+    steps:
+      - checkout
+      - run:
+          name: install bazelisk
+          command: |
+            wget https://github.com/bazelbuild/bazelisk/releases/download/v1.25.0/bazelisk-linux-amd64
+            chmod +x bazelisk-linux-amd64
+            mv bazelisk-linux-amd64 /usr/local/bin/bazel
+      - run: test/test_bazel.sh
+  test-bazel-mac:
+    steps:
+      - checkout
+      - run:
+          name: install bazelisk
+          command: |
+            brew install bazelisk
+      - run: test/test_bazel_mac.sh
+  test-bazel-windows:
+    steps:
+      - checkout
+      - run:
+          name: Download Bazelisk
+          shell: powershell.exe
+          command: |
+            $ProgressPreference = "SilentlyContinue"
+            Invoke-WebRequest -Uri https://github.com/bazelbuild/bazelisk/releases/download/v1.10.1/bazelisk-windows-amd64.exe -OutFile ( New-Item -Path "temp\bazel\bazel.exe" -Force )
+      - run:
+          name: Run Tests
+          shell: powershell.exe
+          command: |
+            $env:Path += ";C:\Python27amd64;$pwd\temp\bazel"
+            .\test\test_bazel.ps1
 
 jobs:
-  flake8:
+  lint:
     executor: ubuntu
     steps:
       - checkout
       - run:
-          name: install pip
+          name: install python deps
           command: |
             apt-get update -q
             apt-get install -q -y python3-pip
-      - run: python3 -m pip install --upgrade pip
-      - run: python3 -m pip install flake8==3.9.2
-      - run: python3 -m flake8 --show-source --statistics --extend-exclude=./scripts
-
+      - run:
+          name: python lint
+          command: |
+            python3 -m pip install --upgrade pip
+            python3 -m pip install flake8==7.1.1 ruff==0.14.1
+            python3 -m flake8 --show-source --statistics --extend-exclude=./scripts
+            python3 -m ruff check
   test-linux:
     executor: ubuntu
     environment:
@@ -95,22 +133,17 @@ jobs:
       name: win/server-2019
       shell: bash.exe
     environment:
-      # We need python installed before we can test anytyhing.
-      # There seems to be undocument copy of python installed here. Hopefully
-      # if this disappears there will be another way of getting a re-installed
-      # version.
-      PYTHON_BIN: "C:\\Python27amd64"
       PYTHONUNBUFFERED: "1"
       EMSDK_NOTTY: "1"
     steps:
       - checkout
-      - run:
-          name: Add python to bash path
-          command: echo "export PATH=\"$PATH:/c/python27amd64/\"" >> $BASH_ENV
+      - run: where python
+
       - run:
           name: Install latest
           shell: cmd.exe
           command: test\test.bat
+
       - run:
           name: test.py
           command: |
@@ -205,7 +238,7 @@ jobs:
           name: push image
           command: |
             docker login -u "$DOCKER_USER" -p "$DOCKER_PASS"
-            make -C ./docker version=${CIRCLE_TAG} alias=latest push
+            make -C ./docker version=${CIRCLE_TAG} tag=${CIRCLE_TAG}-x64 push
 
   publish-docker-image-arm64:
     executor: linux_arm64
@@ -221,65 +254,70 @@ jobs:
           name: push image
           command: |
             docker login -u "$DOCKER_USER" -p "$DOCKER_PASS"
-            make -C ./docker version=${CIRCLE_TAG} alias=${CIRCLE_TAG}-arm64 only_alias=true push
+            make -C ./docker version=${CIRCLE_TAG} tag=${CIRCLE_TAG}-arm64 push
 
-  test-bazel-linux:
+  publish-docker-image-multiplatform:
+    executor: linux_arm64
+    steps:
+      - checkout
+      - run:
+          name: push image
+          command: |
+            docker login -u "$DOCKER_USER" -p "$DOCKER_PASS"
+            make -C ./docker version=${CIRCLE_TAG} tag=${CIRCLE_TAG} push-multiplatform
+            make -C ./docker version=${CIRCLE_TAG} tag="latest" push-multiplatform
+
+  test-bazel7-linux:
+    executor: ubuntu
+    environment:
+      USE_BAZEL_VERSION: "7.x"
+    steps:
+      - test-bazel-linux
+
+  test-bazel-latest-linux:
     executor: ubuntu
     steps:
-      - checkout
-      - run: apt-get install -q -y curl gnupg
-      - run: curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel.gpg
-      - run: mv bazel.gpg /etc/apt/trusted.gpg.d/
-      - run: echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" | tee /etc/apt/sources.list.d/bazel.list
-      - run:
-          name: install pip
-          command: |
-            apt-get update -q
-            apt-get install -q -y python3-pip
-      - run: pip3 install absl-py
-      - run:
-          name: install bazel
-          command: |
-            apt-get install -q -y bazel
-      - run: test/test_bazel.sh
+      - test-bazel-linux
 
-  test-bazel-mac-arm64:
+  test-bazel7-mac-arm64:
+    executor: mac_arm64
+    environment:
+      USE_BAZEL_VERSION: "7.x"
+    steps:
+      - test-bazel-mac
+
+  test-bazel-latest-mac-arm64:
     executor: mac_arm64
     steps:
-      - checkout
-      - run:
-          name: install bazelisk
-          command: |
-            brew install bazelisk
-      - run: test/test_bazel_mac.sh
+      - test-bazel-mac
 
-  test-bazel-windows:
+  test-bazel7-windows:
     executor:
       name: win/server-2019
       shell: powershell.exe -ExecutionPolicy Bypass
     environment:
       PYTHONUNBUFFERED: "1"
       EMSDK_NOTTY: "1"
-      USE_BAZEL_VERSION: "5.4.0"
+      # For some reason version resolution with "7.x" does not work on Windows,
+      # so we have to specify a full version.
+      USE_BAZEL_VERSION: "7.6.1"
     steps:
-      - checkout
-      - run:
-          name: Download Bazelisk
-          shell: powershell.exe
-          command: |
-            $ProgressPreference = "SilentlyContinue"
-            Invoke-WebRequest -Uri https://github.com/bazelbuild/bazelisk/releases/download/v1.10.1/bazelisk-windows-amd64.exe -OutFile ( New-Item -Path "temp\bazel\bazel.exe" -Force )
-      - run:
-          name: Run Tests
-          shell: powershell.exe
-          command: |
-            $env:Path += ";C:\Python27amd64;$pwd\temp\bazel"
-            .\test\test_bazel.ps1
+      - test-bazel-windows
+
+  test-bazel-latest-windows:
+    executor:
+      name: win/server-2019
+      shell: powershell.exe -ExecutionPolicy Bypass
+    environment:
+      PYTHONUNBUFFERED: "1"
+      EMSDK_NOTTY: "1"
+    steps:
+      - test-bazel-windows
 
 workflows:
-  flake8:
+  lint:
     jobs:
-      - flake8
+      - lint
   test-linux:
     jobs:
       - test-linux
@@ -307,12 +345,29 @@ workflows:
               ignore: /.*/
             tags:
               only: /.*/
-  test-bazel-linux:
+      - publish-docker-image-multiplatform:
+          filters:
+            tags:
+              only: /.*/
+          requires:
+            - publish-docker-image-x64
+            - publish-docker-image-arm64
+
+  test-bazel7-linux:
     jobs:
-      - test-bazel-linux
-  test-bazel-mac-arm64:
+      - test-bazel7-linux
+  test-bazel-latest-linux:
     jobs:
-      - test-bazel-mac-arm64
-  test-bazel-windows:
+      - test-bazel-latest-linux
+  test-bazel7-mac-arm64:
     jobs:
-      - test-bazel-windows
+      - test-bazel7-mac-arm64
+  test-bazel-latest-mac-arm64:
+    jobs:
+      - test-bazel-latest-mac-arm64
+  test-bazel7-windows:
+    jobs:
+      - test-bazel7-windows
+  test-bazel-latest-windows:
+    jobs:
+      - test-bazel-latest-windows
